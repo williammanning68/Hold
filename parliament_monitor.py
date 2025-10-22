@@ -18,6 +18,9 @@ import re
 import time
 from dataclasses import dataclass, asdict
 from enum import Enum
+from copy import deepcopy
+
+from monitor_config import load_config
 
 # Note: In production, install these packages:
 # pip install requests beautifulsoup4 pdfplumber schedule
@@ -32,94 +35,76 @@ except ImportError:
 
 # Configuration
 class Config:
-    """Configuration settings for the parliament monitor"""
-    
-    # Database
-    DB_PATH = "tasmania_parliament.db"
-    
-    # Monitoring URLs
-    URLS = {
-        "house_members": "https://www.parliament.tas.gov.au/house-of-assembly/house-members",
-        "house_tabled": "https://www.parliament.tas.gov.au/house-of-assembly/tabled-papers-2025",
-        "house_register": "https://www.parliament.tas.gov.au/house-of-assembly/register-of-members-interests",
-        "lc_members": "https://www.parliament.tas.gov.au/legislative-council/current-members",
-        "lc_tabled": "https://www.parliament.tas.gov.au/legislative-council/tpp",
-        "lc_register": "https://www.parliament.tas.gov.au/legislative-council/register-of-members-interests",
-        "committees_ha": "https://www.parliament.tas.gov.au/house-of-assembly/committees",
-        "committees_lc": "https://www.parliament.tas.gov.au/legislative-council/committees",
-        "committees_joint": "https://www.parliament.tas.gov.au/parliamentary-committees/current-committees",
-        "standing_orders_ha": "https://www.parliament.tas.gov.au/house-of-assembly/standing-orders",
-        "standing_orders_lc": "https://www.parliament.tas.gov.au/legislative-council/standing-orders",
-        "bills": "https://www.parliament.tas.gov.au/bills/bills-by-year",
-        "hansard": "https://www.parliament.tas.gov.au/hansard",
-        "papers_search": "https://search.parliament.tas.gov.au"
-    }
-    
-    # Scraping settings
-    REQUEST_TIMEOUT = 30
-    RETRY_ATTEMPTS = 3
-    RETRY_DELAY = 5
-    USER_AGENT = "Tasmania Parliament Monitor Bot 1.0"
-    
-    # Monitoring frequency (minutes)
-    CHECK_FREQUENCY = {
-        "tabled_papers": 15,
-        "members": 60,
-        "committees": 30,
-        "standing_orders": 120,
-        "bills": 30,
-        "hansard": 15
-    }
-    
-    # Email settings (configure with your SMTP server)
-    EMAIL_ENABLED = False  # Set to True and configure below
-    SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587
-    EMAIL_FROM = "your-email@example.com"
-    EMAIL_PASSWORD = "your-app-password"
-    EMAIL_TO = ["recipient@example.com"]
-    
-    # Alert settings
-    ALERT_KEYWORDS = [
-        # Gaming/Gambling
-        "gaming", "casino", "wagering", "betting", "gambling",
-        "lottery", "pokies", "electronic gaming",
-        
-        # Infrastructure
-        "infrastructure", "construction", "roads", "bridges",
-        "public works", "capital projects", "development",
-        
-        # Environment
-        "environment", "climate", "emissions", "pollution",
-        "conservation", "renewable", "sustainability", "waste",
-        
-        # Health
-        "health", "hospital", "medical", "healthcare",
-        "mental health", "aged care", "ambulance",
-        
-        # Business/Economy
-        "business", "economy", "tax", "budget", "fiscal",
-        "investment", "employment", "industry", "tourism",
-        
-        # Planning
-        "planning", "zoning", "land use", "development",
-        "heritage", "building", "subdivision",
-        
-        # Aboriginal Affairs
-        "aboriginal", "indigenous", "reconciliation",
-        "native title", "cultural heritage"
-    ]
-    
-    # Alert priority levels
-    CRITICAL_KEYWORDS = [
-        "urgent", "immediate", "emergency", "crisis",
-        "mandatory", "compliance", "penalty", "enforcement"
-    ]
-    
-    HIGH_PRIORITY_SOURCES = [
-        "Premier", "Treasurer", "Attorney-General",
-        "Minister for Health", "Minister for Infrastructure"
-    ]
+    """Runtime configuration settings for the parliament monitor."""
+
+    def __init__(self, data: Dict[str, any]):
+        self.raw = deepcopy(data)
+
+        db_cfg = data.get("database", {})
+        self.DB_PATH = db_cfg.get("path", "tasmania_parliament.db")
+
+        source_cfg = data.get("sources", {}).get("urls", {})
+        self.URLS = deepcopy(source_cfg)
+
+        scraping_cfg = data.get("scraping", {})
+        self.REQUEST_TIMEOUT = scraping_cfg.get("timeout", 30)
+        self.RETRY_ATTEMPTS = scraping_cfg.get("retry_attempts", 3)
+        self.RETRY_DELAY = scraping_cfg.get("retry_delay", 5)
+        self.USER_AGENT = scraping_cfg.get("user_agent", "Tasmania Parliament Monitor Bot 1.0")
+
+        monitoring_cfg = data.get("monitoring", {}).get("frequencies", {})
+        default_frequencies = {
+            "tabled_papers": 15,
+            "members": 60,
+            "committees": 30,
+            "standing_orders": 120,
+            "bills": 30,
+            "hansard": 15,
+        }
+        self.CHECK_FREQUENCY = {**default_frequencies, **monitoring_cfg}
+
+        email_cfg = data.get("notifications", {}).get("email", {})
+        self.EMAIL_ENABLED = email_cfg.get("enabled", False)
+        self.SMTP_SERVER = email_cfg.get("smtp_server", "smtp.gmail.com")
+        self.SMTP_PORT = email_cfg.get("smtp_port", 587)
+        self.EMAIL_FROM = email_cfg.get("from_address", "your-email@example.com")
+        self.EMAIL_PASSWORD = email_cfg.get("password", "your-app-password")
+        self.EMAIL_TO = email_cfg.get("recipients", ["recipient@example.com"])
+
+        keyword_cfg = data.get("keywords", {})
+        self.KEYWORDS_BY_CATEGORY = {
+            category: sorted(set(words)) for category, words in keyword_cfg.items()
+        }
+        # Maintain backwards compatibility for existing logic
+        self.ALERT_KEYWORDS = sorted(
+            {word for words in self.KEYWORDS_BY_CATEGORY.values() for word in words}
+        )
+
+        alerts_cfg = data.get("alerts", {})
+        self.CRITICAL_KEYWORDS = alerts_cfg.get("critical_keywords", [])
+        self.HIGH_PRIORITY_SOURCES = alerts_cfg.get("high_priority_sources", [])
+
+        dashboard_cfg = data.get("dashboard", {})
+        self.DASHBOARD_REFRESH_SECONDS = dashboard_cfg.get("refresh_interval_seconds", 120)
+
+    def to_dict(self) -> Dict[str, any]:
+        """Return the raw configuration dictionary."""
+        return deepcopy(self.raw)
+
+
+def load_runtime_config() -> Config:
+    """Load the runtime configuration from disk."""
+    return Config(load_config())
+
+
+RUNTIME_CONFIG = load_runtime_config()
+
+
+def refresh_runtime_config() -> Config:
+    """Reload configuration from disk and update runtime defaults."""
+    global RUNTIME_CONFIG
+    RUNTIME_CONFIG = load_runtime_config()
+    return RUNTIME_CONFIG
 
 
 class AlertLevel(Enum):
@@ -333,30 +318,31 @@ class DatabaseManager:
 
 class WebScraper:
     """Handles web scraping operations"""
-    
-    def __init__(self):
+
+    def __init__(self, config: Config):
+        self.config = config
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': Config.USER_AGENT
+            'User-Agent': self.config.USER_AGENT
         })
     
     def fetch_page(self, url: str, retry_count: int = 0) -> Optional[str]:
         """Fetch webpage content with retry logic"""
         try:
-            response = self.session.get(url, timeout=Config.REQUEST_TIMEOUT)
+            response = self.session.get(url, timeout=self.config.REQUEST_TIMEOUT)
             response.raise_for_status()
             return response.text
         except requests.RequestException as e:
             logging.error(f"Error fetching {url}: {e}")
-            if retry_count < Config.RETRY_ATTEMPTS:
-                time.sleep(Config.RETRY_DELAY)
+            if retry_count < self.config.RETRY_ATTEMPTS:
+                time.sleep(self.config.RETRY_DELAY)
                 return self.fetch_page(url, retry_count + 1)
             return None
-    
+
     def fetch_pdf(self, url: str) -> Optional[bytes]:
         """Fetch PDF content"""
         try:
-            response = self.session.get(url, timeout=Config.REQUEST_TIMEOUT)
+            response = self.session.get(url, timeout=self.config.REQUEST_TIMEOUT)
             response.raise_for_status()
             if 'application/pdf' in response.headers.get('Content-Type', ''):
                 return response.content
@@ -381,10 +367,11 @@ class WebScraper:
 
 class ParliamentMonitor:
     """Main monitoring service"""
-    
-    def __init__(self):
-        self.db = DatabaseManager(Config.DB_PATH)
-        self.scraper = WebScraper()
+
+    def __init__(self, config: Optional[Config] = None):
+        self.config = config or refresh_runtime_config()
+        self.db = DatabaseManager(self.config.DB_PATH)
+        self.scraper = WebScraper(self.config)
         self.setup_logging()
     
     def setup_logging(self):
@@ -401,6 +388,10 @@ class ParliamentMonitor:
     def scrape_tabled_papers(self, url: str, chamber: str) -> List[Document]:
         """Scrape tabled papers from a chamber page"""
         documents = []
+        if not url:
+            logging.warning(f"No tabled paper URL configured for {chamber}")
+            return documents
+
         html = self.scraper.fetch_page(url)
         
         if not html:
@@ -466,7 +457,10 @@ class ParliamentMonitor:
     def scrape_bills(self) -> List[Document]:
         """Scrape current bills"""
         documents = []
-        url = Config.URLS['bills']
+        url = self.config.URLS.get('bills')
+        if not url:
+            logging.warning("Bills URL missing from configuration")
+            return documents
         html = self.scraper.fetch_page(url)
         
         if not html:
@@ -515,7 +509,7 @@ class ParliamentMonitor:
         """Scrape committee information"""
         documents = []
         
-        for key, url in Config.URLS.items():
+        for key, url in self.config.URLS.items():
             if 'committee' not in key:
                 continue
             
@@ -576,16 +570,16 @@ class ParliamentMonitor:
         text_lower = text_to_search.lower()
         
         keywords_found = []
-        for keyword in Config.ALERT_KEYWORDS:
+        for keyword in self.config.ALERT_KEYWORDS:
             if keyword.lower() in text_lower:
                 keywords_found.append(keyword)
         
         doc.keywords_found = keywords_found
         
         # Determine alert level
-        if any(kw.lower() in text_lower for kw in Config.CRITICAL_KEYWORDS):
+        if any(kw.lower() in text_lower for kw in self.config.CRITICAL_KEYWORDS):
             doc.alert_level = AlertLevel.CRITICAL
-        elif any(source.lower() in text_lower for source in Config.HIGH_PRIORITY_SOURCES):
+        elif any(source.lower() in text_lower for source in self.config.HIGH_PRIORITY_SOURCES):
             doc.alert_level = AlertLevel.HIGH
         elif len(keywords_found) > 3:
             doc.alert_level = AlertLevel.HIGH
@@ -613,7 +607,7 @@ class ParliamentMonitor:
     
     def send_email_alert(self, alerts: List[Dict]):
         """Send email alerts"""
-        if not Config.EMAIL_ENABLED:
+        if not self.config.EMAIL_ENABLED:
             logging.info("Email alerts disabled")
             return
         
@@ -655,14 +649,14 @@ class ParliamentMonitor:
             # Send email
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
-            msg['From'] = Config.EMAIL_FROM
-            msg['To'] = ', '.join(Config.EMAIL_TO)
-            
+            msg['From'] = self.config.EMAIL_FROM
+            msg['To'] = ', '.join(self.config.EMAIL_TO)
+
             msg.attach(MIMEText(html_content, 'html'))
-            
-            with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT) as server:
+
+            with smtplib.SMTP(self.config.SMTP_SERVER, self.config.SMTP_PORT) as server:
                 server.starttls()
-                server.login(Config.EMAIL_FROM, Config.EMAIL_PASSWORD)
+                server.login(self.config.EMAIL_FROM, self.config.EMAIL_PASSWORD)
                 server.send_message(msg)
             
             logging.info(f"Email alert sent with {len(alerts)} items")
@@ -699,14 +693,14 @@ class ParliamentMonitor:
         
         # Scrape House of Assembly tabled papers
         docs = self.scrape_tabled_papers(
-            Config.URLS['house_tabled'],
+            self.config.URLS.get('house_tabled'),
             'House of Assembly'
         )
         all_documents.extend(docs)
-        
+
         # Scrape Legislative Council tabled papers
         docs = self.scrape_tabled_papers(
-            Config.URLS['lc_tabled'],
+            self.config.URLS.get('lc_tabled'),
             'Legislative Council'
         )
         all_documents.extend(docs)
@@ -747,13 +741,13 @@ class ParliamentMonitor:
         logging.info("Starting scheduled monitoring service...")
         
         # Schedule different checks
-        schedule.every(Config.CHECK_FREQUENCY['tabled_papers']).minutes.do(
-            lambda: self.scrape_tabled_papers(Config.URLS['house_tabled'], 'House of Assembly')
+        schedule.every(self.config.CHECK_FREQUENCY['tabled_papers']).minutes.do(
+            lambda: self.scrape_tabled_papers(self.config.URLS.get('house_tabled'), 'House of Assembly')
         )
-        schedule.every(Config.CHECK_FREQUENCY['bills']).minutes.do(
+        schedule.every(self.config.CHECK_FREQUENCY['bills']).minutes.do(
             self.scrape_bills
         )
-        schedule.every(Config.CHECK_FREQUENCY['committees']).minutes.do(
+        schedule.every(self.config.CHECK_FREQUENCY['committees']).minutes.do(
             self.scrape_committees
         )
         
@@ -794,7 +788,7 @@ class ParliamentMonitor:
                     'total_documents': len(documents),
                     'critical_alerts': sum(1 for a in alerts if dict(a)['alert_level'] == 'critical'),
                     'high_alerts': sum(1 for a in alerts if dict(a)['alert_level'] == 'high'),
-                    'keywords_tracked': len(Config.ALERT_KEYWORDS)
+                    'keywords_tracked': len(self.config.ALERT_KEYWORDS)
                 }
             }
             

@@ -1,0 +1,189 @@
+{
+  "alerts": {
+    "critical_keywords": [
+      "urgent",
+      "immediate",
+      "emergency",
+      "crisis",
+      "mandatory",
+      "compliance",
+      "penalty",
+      "enforcement"
+    ],
+    "high_priority_sources": [
+      "Premier",
+      "Treasurer",
+      "Attorney-General",
+      "Minister for Health",
+      "Minister for Infrastructure"
+    ]
+  },
+  "dashboard": {
+    "logic_progression": {
+      "order": [
+        "overview",
+        "documents",
+        "alerts",
+        "members",
+        "committees",
+        "watchlist",
+        "reports"
+      ],
+      "rules": {
+        "alerts": {
+          "depends_on": [
+            "documents"
+          ],
+          "description": "Alert list prioritised once new documents ingested"
+        },
+        "committees": {
+          "depends_on": [
+            "members"
+          ],
+          "description": "Committee tracking requires member context"
+        },
+        "documents": {
+          "depends_on": [
+            "overview"
+          ],
+          "description": "Requires summary statistics to contextualise document stream"
+        },
+        "members": {
+          "depends_on": [
+            "overview"
+          ],
+          "description": "Member activity follows high-level monitoring status"
+        },
+        "reports": {
+          "depends_on": [
+            "watchlist"
+          ],
+          "description": "Reports generated once monitoring inputs tuned"
+        },
+        "watchlist": {
+          "depends_on": [
+            "alerts"
+          ],
+          "description": "Keyword adjustments informed by alert review"
+        }
+      }
+    },
+    "refresh_interval_seconds": 120
+  },
+  "database": {
+    "path": "tasmania_parliament.db"
+  },
+  "keywords": {
+    "aboriginal_affairs": [
+      "aboriginal",
+      "indigenous",
+      "reconciliation",
+      "native title",
+      "cultural heritage"
+    ],
+    "business_economy": [
+      "business",
+      "economy",
+      "tax",
+      "budget",
+      "fiscal",
+      "investment",
+      "employment",
+      "industry",
+      "tourism"
+    ],
+    "environment": [
+      "environment",
+      "climate",
+      "emissions",
+      "pollution",
+      "conservation",
+      "renewable",
+      "sustainability",
+      "waste"
+    ],
+    "gaming_gambling": [
+      "gaming",
+      "casino",
+      "wagering",
+      "betting",
+      "gambling",
+      "lottery",
+      "pokies",
+      "electronic gaming"
+    ],
+    "health": [
+      "health",
+      "hospital",
+      "medical",
+      "healthcare",
+      "mental health",
+      "aged care",
+      "ambulance"
+    ],
+    "infrastructure": [
+      "infrastructure",
+      "construction",
+      "roads",
+      "bridges",
+      "public works",
+      "capital projects",
+      "development"
+    ],
+    "planning": [
+      "planning",
+      "zoning",
+      "land use",
+      "development",
+      "heritage",
+      "building",
+      "subdivision"
+    ]
+  },
+  "monitoring": {
+    "frequencies": {
+      "bills": 30,
+      "committees": 30,
+      "hansard": 15,
+      "members": 60,
+      "standing_orders": 120,
+      "tabled_papers": 15
+    }
+  },
+  "notifications": {
+    "email": {
+      "enabled": false,
+      "from_address": "your-email@example.com",
+      "password": "your-app-password",
+      "recipients": [
+        "recipient@example.com"
+      ],
+      "smtp_port": 587,
+      "smtp_server": "smtp.gmail.com"
+    }
+  },
+  "scraping": {
+    "retry_attempts": 3,
+    "retry_delay": 5,
+    "timeout": 30,
+    "user_agent": "Tasmania Parliament Monitor Bot 1.0"
+  },
+  "sources": {
+    "urls": {
+      "bills": "https://www.parliament.tas.gov.au/bills/bills-by-year",
+      "committees_ha": "https://www.parliament.tas.gov.au/house-of-assembly/committees",
+      "committees_joint": "https://www.parliament.tas.gov.au/parliamentary-committees/current-committees",
+      "committees_lc": "https://www.parliament.tas.gov.au/legislative-council/committees",
+      "hansard": "https://www.parliament.tas.gov.au/hansard",
+      "house_members": "https://www.parliament.tas.gov.au/house-of-assembly/house-members",
+      "house_register": "https://www.parliament.tas.gov.au/house-of-assembly/register-of-members-interests",
+      "house_tabled": "https://www.parliament.tas.gov.au/house-of-assembly/tabled-papers-2025",
+      "lc_members": "https://www.parliament.tas.gov.au/legislative-council/current-members",
+      "lc_register": "https://www.parliament.tas.gov.au/legislative-council/register-of-members-interests",
+      "lc_tabled": "https://www.parliament.tas.gov.au/legislative-council/tpp",
+      "papers_search": "https://search.parliament.tas.gov.au",
+      "standing_orders_ha": "https://www.parliament.tas.gov.au/house-of-assembly/standing-orders",
+      "standing_orders_lc": "https://www.parliament.tas.gov.au/legislative-council/standing-orders"
+    }
+  }
+}

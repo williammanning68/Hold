@@ -1,2 +1,7 @@
-playwright==1.54.0
+beautifulsoup4>=4.12
+Flask>=2.3
+Flask-Cors>=3.0
+pdfplumber>=0.10
+requests>=2.31
+schedule>=1.2
 yagmail>=0.15.293

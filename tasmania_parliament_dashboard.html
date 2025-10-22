@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tasmania Parliament Monitor · Government Relations Dashboard</title>
+    <link rel="stylesheet" href="static/css/dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-shell">
+        <header class="dashboard-header">
+            <div class="inner">
+                <div class="brand">
+                    <div class="brand-logo">TP</div>
+                    <div>
+                        <h1>Tasmania Parliament Monitor</h1>
+                        <p>Government relations intelligence · Autonomous updates & alerts</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button id="sync-now" type="button">Run Sync</button>
+                    <a href="https://www.parliament.tas.gov.au" target="_blank" rel="noopener">Open Parliament Portal</a>
+                </div>
+            </div>
+        </header>
+        <div id="status-banner" class="status-banner" hidden></div>
+        <main class="dashboard-main">
+            <section class="logic-progress">
+                <h2>Monitoring Logic Progression</h2>
+                <p>Sections unlock sequentially to support triage, portfolio analysis, and reporting cadence.</p>
+                <div class="logic-steps"></div>
+            </section>
+            <nav class="tab-navigation"></nav>
+            <div id="sections"></div>
+        </main>
+    </div>
+    <noscript>
+        <div style="margin:40px auto;max-width:600px;background:#fee2e2;padding:20px;border-radius:12px;color:#b91c1c;">
+            This dashboard requires JavaScript to fetch live monitoring data. Please enable JavaScript in your browser.
+        </div>
+    </noscript>
+    <script src="static/js/dashboard.js" defer></script>
+</body>
+</html>
