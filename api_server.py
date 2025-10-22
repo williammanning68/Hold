@@ -4,7 +4,7 @@ Tasmania Parliament Monitor - API Server
 Provides REST API for dashboard and external integrations
 """
 
-from flask import Flask, jsonify, request, send_file, render_template_string
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 import sqlite3
 import json
@@ -12,30 +12,37 @@ from datetime import datetime, timedelta
 import os
 from pathlib import Path
 
+from monitor_config import (
+    load_config as load_monitor_config,
+    save_config as save_monitor_config,
+    get_dashboard_logic,
+    CONFIG_PATH,
+)
+
 # Import the parliament monitor for syncing operations
 try:
-    from parliament_monitor import ParliamentMonitor
+    from parliament_monitor import ParliamentMonitor, refresh_runtime_config
 except Exception:
     # Avoid import errors when the monitor is not yet initialised during tests
     ParliamentMonitor = None
+    refresh_runtime_config = None
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for dashboard access
 
 # Configuration
-CONFIG_PATH = "config.json"
-DB_PATH = "tasmania_parliament.db"
+config = load_monitor_config()
+DB_PATH = config.get('database', {}).get('path', 'tasmania_parliament.db')
 
-# Load configuration
-def load_config():
-    """Load configuration from JSON file"""
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, 'r') as f:
-            return json.load(f)
-    return {}
 
-config = load_config()
+def reload_configuration():
+    """Reload configuration from disk and refresh monitor cache."""
+    global config, DB_PATH
+    config = load_monitor_config()
+    DB_PATH = config.get('database', {}).get('path', 'tasmania_parliament.db')
+    if refresh_runtime_config:
+        refresh_runtime_config()
 
 # Database helper functions
 def get_db_connection():
@@ -382,6 +389,75 @@ def api_keywords():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/ui-model')
+def api_ui_model():
+    """Expose dashboard logic progression rules and section metadata."""
+    try:
+        dashboard_cfg = config.get('dashboard', {})
+        logic = get_dashboard_logic(config)
+        refresh_seconds = dashboard_cfg.get('refresh_interval_seconds', 120)
+
+        sections = [
+            {
+                "id": "overview",
+                "label": "Overview",
+                "endpoint": "/api/stats",
+                "description": "Headline metrics summarising monitoring performance",
+                "refresh_seconds": refresh_seconds,
+            },
+            {
+                "id": "documents",
+                "label": "Documents",
+                "endpoint": "/api/documents",
+                "description": "Latest tabled papers, bills, and committee publications",
+                "refresh_seconds": refresh_seconds,
+            },
+            {
+                "id": "alerts",
+                "label": "Alerts",
+                "endpoint": "/api/alerts",
+                "description": "Priority-ranked alerts generated from keyword analysis",
+                "refresh_seconds": refresh_seconds,
+            },
+            {
+                "id": "members",
+                "label": "Members",
+                "endpoint": "/api/members",
+                "description": "Member profiles with roles, committees, and portfolios",
+                "refresh_seconds": refresh_seconds * 4,
+            },
+            {
+                "id": "committees",
+                "label": "Committees",
+                "endpoint": "/api/committees",
+                "description": "Inquiry status, membership, and submission deadlines",
+                "refresh_seconds": refresh_seconds * 2,
+            },
+            {
+                "id": "watchlist",
+                "label": "Watchlist",
+                "endpoint": "/api/keywords",
+                "description": "Managed keyword library grouped by strategic theme",
+                "refresh_seconds": refresh_seconds * 6,
+            },
+            {
+                "id": "reports",
+                "label": "Reports",
+                "endpoint": "/api/export",
+                "description": "Historical exports and scheduled reporting hooks",
+                "refresh_seconds": refresh_seconds * 6,
+            },
+        ]
+
+        return jsonify({
+            "refresh_seconds": refresh_seconds,
+            "logic": logic,
+            "sections": sections,
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
 @app.route('/api/keywords', methods=['POST'])
 def api_add_keyword():
     """Add new keyword to tracking"""
@@ -393,31 +469,27 @@ def api_add_keyword():
         if not keyword:
             return jsonify({"error": "Keyword required"}), 400
         
-        # Load current config
-        with open(CONFIG_PATH, 'r') as f:
-            config = json.load(f)
-        
-        # Add keyword
-        if category not in config['keywords']:
-            config['keywords'][category] = []
-        
-        if keyword not in config['keywords'][category]:
-            config['keywords'][category].append(keyword)
-            
-            # Save config
-            with open(CONFIG_PATH, 'w') as f:
-                json.dump(config, f, indent=2)
-            
-            return jsonify({
-                "success": True,
-                "keyword": keyword,
-                "category": category
-            })
-        else:
+        current_cfg = load_monitor_config()
+        keywords_cfg = current_cfg.setdefault('keywords', {})
+
+        if category not in keywords_cfg:
+            keywords_cfg[category] = []
+
+        if keyword in keywords_cfg[category]:
             return jsonify({
                 "success": False,
                 "message": "Keyword already exists"
             }), 409
+
+        keywords_cfg[category].append(keyword)
+        save_monitor_config(current_cfg)
+        reload_configuration()
+
+        return jsonify({
+            "success": True,
+            "keyword": keyword,
+            "category": category
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -433,11 +505,9 @@ def api_delete_keyword():
         if not keyword:
             return jsonify({"error": "Keyword required"}), 400
 
-        # Load current config
         if not os.path.exists(CONFIG_PATH):
             return jsonify({"error": "Configuration not found"}), 500
-        with open(CONFIG_PATH, 'r') as f:
-            cfg = json.load(f)
+        cfg = load_monitor_config()
 
         # Remove keyword
         removed = False
@@ -447,11 +517,10 @@ def api_delete_keyword():
             if keyword in words:
                 words.remove(keyword)
                 removed = True
-        
+
         if removed:
-            # Save config
-            with open(CONFIG_PATH, 'w') as f:
-                json.dump(cfg, f, indent=2)
+            save_monitor_config(cfg)
+            reload_configuration()
             return jsonify({"success": True, "keyword": keyword, "category": category or 'any'}), 200
         else:
             return jsonify({"success": False, "message": "Keyword not found"}), 404
